@@ -143,6 +143,7 @@ end)
 UIS.InputEnded:Connect(function(input,gp)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
 		aiming = false
+		target = nil
 	end
 end)
 
@@ -153,7 +154,6 @@ end)
 RunService.RenderStepped:Connect(function()
 	if not aimbotEnabled or not aiming then return end
 	
-	-- Only acquire new target if we don't have one or current target is dead
 	if not target or not target.Parent or not target:FindFirstChild("Humanoid") or target:FindFirstChildOfClass("Humanoid").Health <= 0 then
 		target = getClosestTarget()
 	end
