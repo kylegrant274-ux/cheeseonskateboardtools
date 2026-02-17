@@ -18,16 +18,6 @@ local target = nil
 local espObjects = {}
 local SWAP_RADIUS = 500
 
--- Tools settings
-local flyEnabled = false
-local flySpeed = 50
-local walkSpeed = 16
-local flying = false
-local flyConnection = nil
-
--- ESP color settings
-local espColor = Color3.fromRGB(255, 0, 0)
-
 --------------------------------------------------
 -- ESP SYSTEM
 --------------------------------------------------
@@ -40,7 +30,7 @@ local function createESP(character)
 	if not humanoid or not head then return end
 	
 	local highlight = Instance.new("Highlight")
-	highlight.FillColor = espColor
+	highlight.FillColor = Color3.fromRGB(255,0,0)
 	highlight.FillTransparency = 0.5
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	highlight.Parent = character
@@ -66,10 +56,6 @@ local function createESP(character)
 				character.Name ..
 				"\nHP: " ..
 				math.floor(humanoid.Health)
-			-- Update highlight color dynamically
-			if highlight and highlight.Parent then
-				highlight.FillColor = espColor
-			end
 			task.wait(0.1)
 		end
 	end)
@@ -186,132 +172,6 @@ local function getClosestTarget()
 end
 
 --------------------------------------------------
--- FLY SYSTEM
---------------------------------------------------
-
-local flyBodies = {}
-
-local function startFlying()
-	if flying then return end
-	flying = true
-	
-	local myChar = localPlayer.Character
-	if not myChar then return end
-	
-	local rootPart = myChar:FindFirstChild("HumanoidRootPart")
-	if not rootPart then return end
-	
-	-- Clean up any existing bodies first
-	if flyBodies.velocity and flyBodies.velocity.Parent then
-		flyBodies.velocity:Destroy()
-	end
-	if flyBodies.gyro and flyBodies.gyro.Parent then
-		flyBodies.gyro:Destroy()
-	end
-	
-	-- Create BodyVelocity for flying
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.Name = "FlyVelocity"
-	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-	bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-	bodyVelocity.Parent = rootPart
-	
-	-- Create BodyGyro for rotation
-	local bodyGyro = Instance.new("BodyGyro")
-	bodyGyro.Name = "FlyGyro"
-	bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-	bodyGyro.P = 10000
-	bodyGyro.Parent = rootPart
-	
-	flyBodies.velocity = bodyVelocity
-	flyBodies.gyro = bodyGyro
-	flyBodies.rootPart = rootPart
-	
-	if flyConnection then
-		flyConnection:Disconnect()
-	end
-	
-	flyConnection = RunService.RenderStepped:Connect(function()
-		if not flyEnabled then
-			stopFlying()
-			return
-		end
-		
-		if not rootPart or not rootPart.Parent or not bodyVelocity.Parent or not bodyGyro.Parent then
-			stopFlying()
-			return
-		end
-		
-		bodyGyro.CFrame = camera.CFrame
-		
-		local moveDirection = Vector3.new(0, 0, 0)
-		if UIS:IsKeyDown(Enum.KeyCode.W) then
-			moveDirection = moveDirection + (camera.CFrame.LookVector)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.S) then
-			moveDirection = moveDirection - (camera.CFrame.LookVector)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.A) then
-			moveDirection = moveDirection - (camera.CFrame.RightVector)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.D) then
-			moveDirection = moveDirection + (camera.CFrame.RightVector)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.Space) then
-			moveDirection = moveDirection + Vector3.new(0, 1, 0)
-		end
-		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-			moveDirection = moveDirection - Vector3.new(0, 1, 0)
-		end
-		
-		if moveDirection.Magnitude > 0 then
-			moveDirection = moveDirection.Unit
-		end
-		
-		bodyVelocity.Velocity = moveDirection * flySpeed
-	end)
-end
-
-local function stopFlying()
-	flying = false
-	
-	if flyConnection then
-		flyConnection:Disconnect()
-		flyConnection = nil
-	end
-	
-	if flyBodies.velocity and flyBodies.velocity.Parent then
-		flyBodies.velocity:Destroy()
-	end
-	
-	if flyBodies.gyro and flyBodies.gyro.Parent then
-		flyBodies.gyro:Destroy()
-	end
-	
-	flyBodies = {}
-end
-
---------------------------------------------------
--- WALK SPEED SYSTEM
---------------------------------------------------
-
-local function updateWalkSpeed()
-	local myChar = localPlayer.Character
-	if myChar then
-		local humanoid = myChar:FindFirstChildOfClass("Humanoid")
-		if humanoid then
-			humanoid.WalkSpeed = walkSpeed
-		end
-	end
-end
-
--- Update walk speed when character spawns
-localPlayer.CharacterAdded:Connect(function()
-	task.wait(0.1)
-	updateWalkSpeed()
-end)
-
---------------------------------------------------
 -- INPUT (KEYBOARD SHORTCUTS)
 --------------------------------------------------
 
@@ -380,13 +240,13 @@ task.spawn(function()
 	local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 	
 	local Window = Library:CreateWindow({
-		Title = "Cheeseyonaskateboard",
-		SubTitle = "Universal Cheat Script",
-		TabWidth = 120,
-		Size = UDim2.fromOffset(700, 560),
+		Title = "Aimbot & ESP",
+		SubTitle = "Universal FPS Script",
+		TabWidth = 160,
+		Size = UDim2.fromOffset(580, 460),
 		Acrylic = true,
 		Theme = "Darker",
-		MinSize = Vector2.new(600, 450),
+		MinSize = Vector2.new(470, 380),
 		MinimizeKey = Enum.KeyCode.RightControl
 	})
 	
@@ -398,10 +258,6 @@ task.spawn(function()
 		Visuals = Window:CreateTab({
 			Title = "Visuals",
 			Icon = "eye"
-		}),
-		Tools = Window:CreateTab({
-			Title = "Tools",
-			Icon = "wrench"
 		}),
 		Settings = Window:CreateTab({
 			Title = "Settings",
@@ -448,94 +304,6 @@ task.spawn(function()
 			else
 				clearESP()
 			end
-		end
-	})
-	
-	-- ESP Color Sliders
-	Tabs.Visuals:CreateLabel("ESP Color", true)
-	
-	local espColorR = Tabs.Visuals:CreateSlider("ESPColorR", {
-		Title = "Red",
-		Min = 0,
-		Max = 255,
-		Default = 255,
-		Step = 1,
-		Callback = function(Value)
-			local g = math.floor(espColor.G * 255)
-			local b = math.floor(espColor.B * 255)
-			espColor = Color3.fromRGB(Value, g, b)
-		end
-	})
-	
-	local espColorG = Tabs.Visuals:CreateSlider("ESPColorG", {
-		Title = "Green",
-		Min = 0,
-		Max = 255,
-		Default = 0,
-		Step = 1,
-		Callback = function(Value)
-			local r = math.floor(espColor.R * 255)
-			local b = math.floor(espColor.B * 255)
-			espColor = Color3.fromRGB(r, Value, b)
-		end
-	})
-	
-	local espColorB = Tabs.Visuals:CreateSlider("ESPColorB", {
-		Title = "Blue",
-		Min = 0,
-		Max = 255,
-		Default = 0,
-		Step = 1,
-		Callback = function(Value)
-			local r = math.floor(espColor.R * 255)
-			local g = math.floor(espColor.G * 255)
-			espColor = Color3.fromRGB(r, g, Value)
-		end
-	})
-	
-	-- TOOLS TAB
-	Tabs.Tools:CreateParagraph("Movement", {
-		Title = "Movement Tools",
-		Content = "Enhance your movement capabilities."
-	})
-	
-	local flyToggle = Tabs.Tools:CreateToggle("FlyToggle", {
-		Title = "Fly",
-		Default = false,
-		Callback = function(Value)
-			flyEnabled = Value
-			if flyEnabled then
-				startFlying()
-			else
-				stopFlying()
-			end
-		end
-	})
-	
-	local flySpeedSlider = Tabs.Tools:CreateSlider("FlySpeedSlider", {
-		Title = "Fly Speed",
-		Description = "Control your flying speed",
-		Min = 10,
-		Max = 200,
-		Default = 50,
-		Step = 5,
-		Suffix = " speed",
-		Callback = function(Value)
-			flySpeed = Value
-		end
-	})
-	
-	local walkSpeedSlider = Tabs.Tools:CreateSlider("WalkSpeedSlider", {
-		Title = "Walk Speed",
-		Description = "Control your walking speed",
-		Min = 5,
-		Max = 100,
-		Default = 16,
-		Step = 1,
-		Suffix = " speed",
-		Callback = function(Value)
-			walkSpeed = Value
-			updateWalkSpeed()
 		end
 	})
 	
