@@ -47,37 +47,31 @@ suggestions.Text = ""
 suggestions.Parent = frame
 
 --------------------------------------------------
--- CONFIRMATION POPUP
+-- NOTIFICATIONS (FIXED)
 --------------------------------------------------
 
 local function notify(msg)
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(0,250,0,30)
-	label.Position = UDim2.new(1,-260,1,-200)
-	label.BackgroundTransparency = 0.3
+	label.Size = UDim2.new(0,260,0,30)
+	label.Position = UDim2.new(1,-270,1,-200)
 	label.BackgroundColor3 = Color3.new(0,0,0)
+	label.BackgroundTransparency = 0.3
 	label.TextColor3 = Color3.new(1,1,1)
+	label.Font = Enum.Font.SourceSansBold
+	label.TextSize = 18
 	label.Text = msg
 	label.Parent = gui
-	
+
 	task.delay(2,function()
 		label:Destroy()
 	end)
 end
 
 --------------------------------------------------
--- COMMAND DATA
+-- COMMANDS
 --------------------------------------------------
 
-local commands = {
-	"fly",
-	"speed",
-	"goto",
-	"swp",
-	"wp",
-	"noclip"
-}
-
+local commands = {"fly","speed","goto","swp","wp","noclip"}
 local waypoints = {}
 
 --------------------------------------------------
@@ -86,15 +80,14 @@ local waypoints = {}
 
 local function updateSuggestions(text)
 	text = text:lower()
-	
 	local list = {}
-	
+
 	for _,cmd in pairs(commands) do
 		if cmd:sub(1,#text) == text then
 			table.insert(list,cmd)
 		end
 	end
-	
+
 	suggestions.Text = table.concat(list,"\n")
 end
 
@@ -108,58 +101,62 @@ end)
 
 local function findPlayer(str)
 	str = (str or ""):lower()
-	
+
 	for _,plr in pairs(Players:GetPlayers()) do
-		if plr ~= lp then
-			if plr.Name:lower():find(str) then
-				return plr
-			end
+		if plr ~= lp and plr.Name:lower():find(str) then
+			return plr
 		end
 	end
 end
 
 --------------------------------------------------
--- FLY (FIXED)
+-- FLY (ACTUALLY FIXED)
 --------------------------------------------------
 
 local flying = false
 local flySpeed = 50
-local bv, bg
+local bodyVel, bodyGyro
 
 local function toggleFly(speed)
 	flying = not flying
-	
+
 	if flying then
 		flySpeed = tonumber(speed) or 50
-		
-		bv = Instance.new("BodyVelocity")
-		bv.MaxForce = Vector3.new(1e6,1e6,1e6)
-		bv.Velocity = Vector3.zero
-		bv.Parent = root
-		
-		bg = Instance.new("BodyGyro")
-		bg.MaxTorque = Vector3.new(1e6,1e6,1e6)
-		bg.CFrame = root.CFrame
-		bg.Parent = root
-		
+
+		bodyVel = Instance.new("BodyVelocity")
+		bodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
+		bodyVel.Velocity = Vector3.zero
+		bodyVel.Parent = root
+
+		bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
+		bodyGyro.P = 9e4
+		bodyGyro.CFrame = cam.CFrame
+		bodyGyro.Parent = root
+
+		hum.PlatformStand = true
+
 		notify("Fly Enabled ("..flySpeed..")")
+
 	else
-		if bv then bv:Destroy() end
-		if bg then bg:Destroy() end
-		
+		if bodyVel then bodyVel:Destroy() end
+		if bodyGyro then bodyGyro:Destroy() end
+
+		hum.PlatformStand = false
+
 		notify("Fly Disabled")
 	end
 end
 
 RunService.RenderStepped:Connect(function()
-	if not flying or not bv then return end
-	
-	bg.CFrame = cam.CFrame
-	
-	local moveDir = hum.MoveDirection
-	local camDir = cam.CFrame:VectorToWorldSpace(moveDir)
-	
-	bv.Velocity = camDir * flySpeed
+	if not flying or not bodyVel then return end
+
+	bodyGyro.CFrame = cam.CFrame
+
+	local move = hum.MoveDirection
+	local worldMove = cam.CFrame:VectorToWorldSpace(move)
+
+	bodyVel.Velocity = worldMove * flySpeed
 end)
 
 --------------------------------------------------
@@ -170,7 +167,7 @@ local noclip = false
 
 RunService.Stepped:Connect(function()
 	if not noclip then return end
-	
+
 	for _,v in pairs(char:GetDescendants()) do
 		if v:IsA("BasePart") then
 			v.CanCollide = false
@@ -180,7 +177,7 @@ end)
 
 local function toggleNoclip()
 	noclip = not noclip
-	
+
 	if noclip then
 		notify("Noclip Enabled")
 	else
@@ -222,66 +219,61 @@ local function gotoWaypoint(name)
 end
 
 --------------------------------------------------
--- COMMAND RUNNER
+-- RUN COMMAND
 --------------------------------------------------
 
 local function runCommand(text)
 	local args = text:split(" ")
 	local cmd = (args[1] or ""):lower()
-	
+
 	if cmd == "fly" then
 		toggleFly(args[2])
-	end
-	
-	if cmd == "speed" then
+	elseif cmd == "speed" then
 		toggleSpeed(args[2])
-	end
-	
-	if cmd == "goto" then
+	elseif cmd == "goto" then
 		local plr = findPlayer(args[2])
 		if plr and plr.Character then
-			root.CFrame =
-				plr.Character.HumanoidRootPart.CFrame
+			root.CFrame = plr.Character.HumanoidRootPart.CFrame
 			notify("Teleported to "..plr.Name)
 		end
-	end
-	
-	if cmd == "swp" then
+	elseif cmd == "swp" then
 		setWaypoint(args[2])
-	end
-	
-	if cmd == "wp" then
+	elseif cmd == "wp" then
 		gotoWaypoint(args[2])
-	end
-	
-	if cmd == "noclip" then
+	elseif cmd == "noclip" then
 		toggleNoclip()
 	end
 end
 
 --------------------------------------------------
--- OPEN / CLOSE (;)
+-- INPUT (FULLY FIXED)
 --------------------------------------------------
 
 UIS.InputBegan:Connect(function(input,gp)
 	if gp then return end
-	
+
+	-- TOGGLE CONSOLE
 	if input.KeyCode == Enum.KeyCode.Semicolon then
-		
+
 		frame.Visible = not frame.Visible
-		
+
 		if frame.Visible then
-			box.Text = "" -- prevents ; appearing
+			box.Text = ""          -- stops ";" appearing
+			task.wait()            -- ensures focus next frame
 			box:CaptureFocus()
 		else
 			box:ReleaseFocus()
 		end
+
+		return -- prevents typing ";"
 	end
-	
+
+	-- SUBMIT COMMAND (INSTANT)
 	if input.KeyCode == Enum.KeyCode.Return then
 		if frame.Visible then
 			runCommand(box.Text)
 			box.Text = ""
+			return
 		end
 	end
 end)
