@@ -201,27 +201,43 @@ local function startFlying()
 	local rootPart = myChar:FindFirstChild("HumanoidRootPart")
 	if not rootPart then return end
 	
+	-- Clean up any existing bodies first
+	if flyBodies.velocity and flyBodies.velocity.Parent then
+		flyBodies.velocity:Destroy()
+	end
+	if flyBodies.gyro and flyBodies.gyro.Parent then
+		flyBodies.gyro:Destroy()
+	end
+	
 	-- Create BodyVelocity for flying
 	local bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Name = "FlyVelocity"
 	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
 	bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 	bodyVelocity.Parent = rootPart
 	
 	-- Create BodyGyro for rotation
 	local bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.Name = "FlyGyro"
 	bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
 	bodyGyro.P = 10000
 	bodyGyro.Parent = rootPart
 	
 	flyBodies.velocity = bodyVelocity
 	flyBodies.gyro = bodyGyro
+	flyBodies.rootPart = rootPart
+	
+	if flyConnection then
+		flyConnection:Disconnect()
+	end
 	
 	flyConnection = RunService.RenderStepped:Connect(function()
-		if not flyEnabled or not flying then
+		if not flyEnabled then
+			stopFlying()
 			return
 		end
 		
-		if not rootPart or not rootPart.Parent then
+		if not rootPart or not rootPart.Parent or not bodyVelocity.Parent or not bodyGyro.Parent then
 			stopFlying()
 			return
 		end
@@ -264,15 +280,15 @@ local function stopFlying()
 		flyConnection = nil
 	end
 	
-	if flyBodies.velocity then
+	if flyBodies.velocity and flyBodies.velocity.Parent then
 		flyBodies.velocity:Destroy()
-		flyBodies.velocity = nil
 	end
 	
-	if flyBodies.gyro then
+	if flyBodies.gyro and flyBodies.gyro.Parent then
 		flyBodies.gyro:Destroy()
-		flyBodies.gyro = nil
 	end
+	
+	flyBodies = {}
 end
 
 --------------------------------------------------
@@ -435,13 +451,45 @@ task.spawn(function()
 		end
 	})
 	
-	Tabs.Visuals:CreateLabel("Color Picker", true)
+	-- ESP Color Sliders
+	Tabs.Visuals:CreateLabel("ESP Color", true)
 	
-	local espColorPicker = Tabs.Visuals:CreateColorPicker("ESPColorPicker", {
-		Title = "Color",
-		Default = Color3.fromRGB(255, 0, 0),
+	local espColorR = Tabs.Visuals:CreateSlider("ESPColorR", {
+		Title = "Red",
+		Min = 0,
+		Max = 255,
+		Default = 255,
+		Step = 1,
 		Callback = function(Value)
-			espColor = Value
+			local g = math.floor(espColor.G * 255)
+			local b = math.floor(espColor.B * 255)
+			espColor = Color3.fromRGB(Value, g, b)
+		end
+	})
+	
+	local espColorG = Tabs.Visuals:CreateSlider("ESPColorG", {
+		Title = "Green",
+		Min = 0,
+		Max = 255,
+		Default = 0,
+		Step = 1,
+		Callback = function(Value)
+			local r = math.floor(espColor.R * 255)
+			local b = math.floor(espColor.B * 255)
+			espColor = Color3.fromRGB(r, Value, b)
+		end
+	})
+	
+	local espColorB = Tabs.Visuals:CreateSlider("ESPColorB", {
+		Title = "Blue",
+		Min = 0,
+		Max = 255,
+		Default = 0,
+		Step = 1,
+		Callback = function(Value)
+			local r = math.floor(espColor.R * 255)
+			local g = math.floor(espColor.G * 255)
+			espColor = Color3.fromRGB(r, g, Value)
 		end
 	})
 	
