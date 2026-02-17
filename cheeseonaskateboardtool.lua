@@ -259,6 +259,10 @@ task.spawn(function()
 			Title = "Visuals",
 			Icon = "eye"
 		}),
+		Tools = Window:CreateTab({
+			Title = "Tools",
+			Icon = "wrench"
+		}),
 		Settings = Window:CreateTab({
 			Title = "Settings",
 			Icon = "settings"
@@ -306,6 +310,14 @@ task.spawn(function()
 			end
 		end
 	})
+	
+	-- TOOLS TAB
+	Tabs.Tools:CreateParagraph("Movement", {
+		Title = "Movement Tools",
+		Content = "Enhance your movement capabilities."
+	})
+	
+	Tabs.Tools:CreateLabel("Coming Soon", true)
 	
 	-- SETTINGS TAB
 	Tabs.Settings:CreateParagraph("Filters", {
