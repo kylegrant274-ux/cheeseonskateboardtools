@@ -86,49 +86,6 @@ end
 -- TARGET FUNCTIONS
 --------------------------------------------------
 
-local function getTargetsInRadius()
-	local list = {}
-	
-	local myChar = localPlayer.Character
-	if not myChar then return list end
-	
-	local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-	if not myRoot then return list end
-	
-	for _, plr in pairs(Players:GetPlayers()) do
-		if plr ~= localPlayer and plr.Character then
-			
-			if ignoreFriends and isFriend(plr) then
-				continue
-			end
-			
-			local humanoid =
-				plr.Character:FindFirstChildOfClass("Humanoid")
-			local root =
-				plr.Character:FindFirstChild("HumanoidRootPart")
-			
-			if humanoid and root and humanoid.Health > 0 then
-				
-				local dist =
-					(root.Position - myRoot.Position).Magnitude
-				
-				if dist <= SWAP_RADIUS then
-					table.insert(list,{
-						char = plr.Character,
-						dist = dist
-					})
-				end
-			end
-		end
-	end
-	
-	table.sort(list,function(a,b)
-		return a.dist < b.dist
-	end)
-	
-	return list
-end
-
 local function getClosestTarget()
 	local closest = nil
 	local shortest = math.huge
@@ -172,7 +129,7 @@ local function getClosestTarget()
 end
 
 --------------------------------------------------
--- INPUT (KEYBOARD SHORTCUTS)
+-- INPUT
 --------------------------------------------------
 
 UIS.InputBegan:Connect(function(input,gp)
@@ -190,7 +147,7 @@ UIS.InputEnded:Connect(function(input,gp)
 end)
 
 --------------------------------------------------
--- AIMBOT LOOP (RMB HOLD)
+-- AIMBOT LOOP
 --------------------------------------------------
 
 RunService.RenderStepped:Connect(function()
@@ -231,7 +188,7 @@ end
 Players.PlayerAdded:Connect(onPlayer)
 
 --------------------------------------------------
--- FLUENT UI (LOADED IN BACKGROUND)
+-- UI
 --------------------------------------------------
 
 task.spawn(function()
@@ -241,9 +198,9 @@ task.spawn(function()
 	
 	local Window = Library:CreateWindow({
 		Title = "Aimbot & ESP",
-		SubTitle = "Universal FPS Script",
+		SubTitle = "Universal FPS Script v1.0.0",
 		TabWidth = 160,
-		Size = UDim2.fromOffset(580, 460),
+		Size = UDim2.fromOffset(600, 400),
 		Acrylic = true,
 		Theme = "Darker",
 		MinSize = Vector2.new(470, 380),
@@ -269,13 +226,7 @@ task.spawn(function()
 		})
 	}
 	
-	-- COMBAT TAB
-	Tabs.Combat:CreateParagraph("Aimbot", {
-		Title = "Aimbot Controls",
-		Content = "Hold right mouse button to aim. Auto-targets closest player."
-	})
-	
-	local aimbotToggle = Tabs.Combat:CreateToggle("AimbotToggle", {
+	Tabs.Combat:CreateToggle("AimbotToggle", {
 		Title = "Aimbot",
 		Default = false,
 		Callback = function(Value)
@@ -284,13 +235,7 @@ task.spawn(function()
 		end
 	})
 	
-	-- VISUALS TAB
-	Tabs.Visuals:CreateParagraph("ESP", {
-		Title = "Enemy Highlighting",
-		Content = "Shows all players with health indicators."
-	})
-	
-	local espToggle = Tabs.Visuals:CreateToggle("ESPToggle", {
+	Tabs.Visuals:CreateToggle("ESPToggle", {
 		Title = "ESP",
 		Default = false,
 		Callback = function(Value)
@@ -307,13 +252,7 @@ task.spawn(function()
 		end
 	})
 	
-	-- SETTINGS TAB
-	Tabs.Settings:CreateParagraph("Filters", {
-		Title = "Target Filters",
-		Content = "Configure who can be targeted."
-	})
-	
-	local friendCheckToggle = Tabs.Settings:CreateToggle("FriendCheck", {
+	Tabs.Settings:CreateToggle("FriendCheck", {
 		Title = "Ignore Friends",
 		Default = false,
 		Callback = function(Value)
@@ -321,31 +260,29 @@ task.spawn(function()
 		end
 	})
 	
-	-- INFO TAB
-	Tabs.Info:CreateParagraph("Combat Tab", {
-		Title = "Combat",
-		Content = "Enable or disable the Aimbot. Hold right mouse button to aim at the closest enemy."
+	Tabs.Info:CreateParagraph("Combat", {
+		Title = "Combat Tab",
+		Content = "Toggle Aimbot on/off. Hold right mouse button to aim at closest player."
 	})
 	
-	Tabs.Info:CreateParagraph("Visuals Tab", {
-		Title = "Visuals",
-		Content = "Enable or disable ESP to see all players through walls with health indicators."
+	Tabs.Info:CreateParagraph("Visuals", {
+		Title = "Visuals Tab",
+		Content = "Toggle ESP on/off to see all players through walls with health."
 	})
 	
-	Tabs.Info:CreateParagraph("Settings Tab", {
-		Title = "Settings",
-		Content = "Configure aimbot and ESP settings. Toggle friend check to avoid targeting friends."
+	Tabs.Info:CreateParagraph("Settings", {
+		Title = "Settings Tab",
+		Content = "Toggle friend check to avoid targeting your friends."
 	})
 	
 	Tabs.Info:CreateButton({
 		Title = "Load Infinite Yield",
-		Description = "Load infinite yield commands",
+		Description = "Load infinite yield admin commands",
 		Callback = function()
 			loadstring(game:HttpGet(('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'),true))()
 		end
 	})
 	
-	-- Save Manager
 	SaveManager:SetLibrary(Library)
 	InterfaceManager:SetLibrary(Library)
 	SaveManager:IgnoreThemeSettings()
