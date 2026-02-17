@@ -30,7 +30,7 @@ local flyBodies = {}
 local espColor = Color3.fromRGB(255,0,0)
 
 --------------------------------------------------
--- ESP SYSTEM
+-- ESP
 --------------------------------------------------
 
 local function createESP(character)
@@ -86,15 +86,7 @@ local function clearESP()
 end
 
 --------------------------------------------------
--- FRIEND CHECK
---------------------------------------------------
-
-local function isFriend(plr)
-	return localPlayer:IsFriendsWith(plr.UserId)
-end
-
---------------------------------------------------
--- TARGETING
+-- AIMBOT
 --------------------------------------------------
 
 local function getClosestTarget()
@@ -103,10 +95,6 @@ local function getClosestTarget()
 	
 	for _, plr in pairs(Players:GetPlayers()) do
 		if plr ~= localPlayer and plr.Character then
-			
-			if ignoreFriends and isFriend(plr) then
-				continue
-			end
 			
 			local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
 			local head = plr.Character:FindFirstChild("Head")
@@ -135,8 +123,33 @@ local function getClosestTarget()
 	return closest
 end
 
+UIS.InputBegan:Connect(function(i,gp)
+	if gp then return end
+	if i.UserInputType == Enum.UserInputType.MouseButton2 then
+		aiming = true
+	end
+end)
+
+UIS.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton2 then
+		aiming = false
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not aimbotEnabled or not aiming then return end
+	
+	target = getClosestTarget()
+	if not target then return end
+	
+	local head = target:FindFirstChild("Head")
+	if head then
+		camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position)
+	end
+end)
+
 --------------------------------------------------
--- FLY SYSTEM
+-- FLY
 --------------------------------------------------
 
 local function startFlying()
@@ -159,7 +172,7 @@ local function startFlying()
 	bg.P = 10000
 	bg.Parent = root
 	
-	flyBodies = {bv= bv, bg= bg, root=root}
+	flyBodies = {bv= bv, bg= bg}
 	
 	flyConnection = RunService.RenderStepped:Connect(function()
 		if not flyEnabled then return end
@@ -218,76 +231,14 @@ local function stopFlying()
 end
 
 --------------------------------------------------
--- WALK SPEED
---------------------------------------------------
-
-local function updateWalkSpeed()
-	local char = localPlayer.Character
-	if char then
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.WalkSpeed = walkSpeed
-		end
-	end
-end
-
-localPlayer.CharacterAdded:Connect(function()
-	task.wait(0.1)
-	updateWalkSpeed()
-end)
-
---------------------------------------------------
--- AIMBOT
---------------------------------------------------
-
-UIS.InputBegan:Connect(function(i,gp)
-	if gp then return end
-	if i.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = true
-	end
-end)
-
-UIS.InputEnded:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = false
-	end
-end)
-
-RunService.RenderStepped:Connect(function()
-	if not aimbotEnabled or not aiming then return end
-	
-	target = getClosestTarget()
-	if not target then return end
-	
-	local head = target:FindFirstChild("Head")
-	if head then
-		camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position)
-	end
-end)
-
---------------------------------------------------
--- PLAYER HOOK
---------------------------------------------------
-
-local function onPlayer(plr)
-	plr.CharacterAdded:Connect(function(char)
-		if espOn and plr ~= localPlayer then
-			task.wait(0.5)
-			createESP(char)
-		end
-	end)
-end
-
-for _,p in pairs(Players:GetPlayers()) do onPlayer(p) end
-Players.PlayerAdded:Connect(onPlayer)
-
---------------------------------------------------
 -- UI
 --------------------------------------------------
 
 task.spawn(function()
 
-local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+local Library = loadstring(game:HttpGetAsync(
+"https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"
+))()
 
 local Window = Library:CreateWindow({
 	Title = "Cheeseyonaskateboard",
@@ -305,10 +256,18 @@ local Tabs = {
 }
 
 --------------------------------------------------
+-- SECTIONS (FIXES BLANK UI)
+--------------------------------------------------
+
+local CombatSection = Tabs.Combat:CreateSection("Aimbot")
+local VisualSection = Tabs.Visuals:CreateSection("ESP")
+local ToolsSection = Tabs.Tools:CreateSection("Movement")
+
+--------------------------------------------------
 -- COMBAT
 --------------------------------------------------
 
-Tabs.Combat:CreateToggle("Aimbot",{
+CombatSection:CreateToggle("Aimbot",{
 	Title="Aimbot",
 	Default=false,
 	Callback=function(v)
@@ -317,10 +276,10 @@ Tabs.Combat:CreateToggle("Aimbot",{
 })
 
 --------------------------------------------------
--- VISUALS
+-- ESP
 --------------------------------------------------
 
-Tabs.Visuals:CreateToggle("ESP",{
+VisualSection:CreateToggle("ESP",{
 	Title="ESP",
 	Default=false,
 	Callback=function(v)
@@ -337,7 +296,7 @@ Tabs.Visuals:CreateToggle("ESP",{
 	end
 })
 
-Tabs.Visuals:CreateColorPicker("ESPColor",{
+VisualSection:CreateColorPicker("ESPColor",{
 	Title="ESP Color",
 	Default=espColor,
 	Callback=function(v)
@@ -349,7 +308,7 @@ Tabs.Visuals:CreateColorPicker("ESPColor",{
 -- TOOLS
 --------------------------------------------------
 
-Tabs.Tools:CreateToggle("Fly",{
+ToolsSection:CreateToggle("Fly",{
 	Title="Fly",
 	Default=false,
 	Callback=function(v)
@@ -358,7 +317,7 @@ Tabs.Tools:CreateToggle("Fly",{
 	end
 })
 
-Tabs.Tools:CreateSlider("FlySpeed",{
+ToolsSection:CreateSlider("FlySpeed",{
 	Title="Fly Speed",
 	Min=10,
 	Max=200,
@@ -368,14 +327,18 @@ Tabs.Tools:CreateSlider("FlySpeed",{
 	end
 })
 
-Tabs.Tools:CreateSlider("WalkSpeed",{
+ToolsSection:CreateSlider("WalkSpeed",{
 	Title="Walk Speed",
 	Min=5,
 	Max=100,
 	Default=16,
 	Callback=function(v)
 		walkSpeed=v
-		updateWalkSpeed()
+		local char = localPlayer.Character
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then hum.WalkSpeed=v end
+		end
 	end
 })
 
