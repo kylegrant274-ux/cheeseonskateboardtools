@@ -1,279 +1,208 @@
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+--// COMBAT TESTING & DEBUG TOOL
+--// LocalScript - StarterPlayerScripts
 
-local localPlayer = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
 --------------------------------------------------
 -- SETTINGS
 --------------------------------------------------
 
-local espOn = false
-local aimbotEnabled = false -- F2 toggle
-local aiming = false -- Right click hold
-local ignoreFriends = false
-local target = nil
+local LOCK_TOGGLE_KEY = Enum.KeyCode.Q
+local LOCK_RADIUS = 150
+local LOCK_SMOOTHNESS = 0.15
 
-local espObjects = {}
-local SWAP_RADIUS = 500
+local ESP_ENABLED = true
 
 --------------------------------------------------
--- ESP SYSTEM
+-- STATE
 --------------------------------------------------
 
-local function createESP(character)
-	if espObjects[character] then return end
-	
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local head = character:FindFirstChild("Head")
-	if not humanoid or not head then return end
-	
-	local highlight = Instance.new("Highlight")
-	highlight.FillColor = Color3.fromRGB(255,0,0)
-	highlight.FillTransparency = 0.5
-	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	highlight.Parent = character
-	
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.new(0,200,0,50)
-	billboard.StudsOffset = Vector3.new(0,2.5,0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = head
-	
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.new(1,0,1,0)
-	text.BackgroundTransparency = 1
-	text.TextColor3 = Color3.new(1,1,1)
-	text.TextStrokeTransparency = 0
-	text.Font = Enum.Font.SourceSansBold
-	text.TextScaled = true
-	text.Parent = billboard
-	
-	task.spawn(function()
-		while humanoid.Parent and espOn do
-			text.Text =
-				character.Name ..
-				"\nHP: " ..
-				math.floor(humanoid.Health)
-			task.wait(0.1)
-		end
-	end)
-	
-	espObjects[character] = {
-		highlight = highlight,
-		gui = billboard
-	}
-end
+local lockSystemEnabled = false
+local rightClickHeld = false
+local currentTarget = nil
 
-local function clearESP()
-	for _, obj in pairs(espObjects) do
-		if obj.highlight then obj.highlight:Destroy() end
-		if obj.gui then obj.gui:Destroy() end
+--------------------------------------------------
+-- UTILITY FUNCTIONS
+--------------------------------------------------
+
+local function getCharacter(player)
+	if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+		return player.Character
 	end
-	espObjects = {}
+end
+
+local function isAlive(character)
+	local hum = character and character:FindFirstChild("Humanoid")
+	return hum and hum.Health > 0
 end
 
 --------------------------------------------------
--- FRIEND CHECK
+-- TARGET SCAN FUNCTION
 --------------------------------------------------
-
-local function isFriend(plr)
-	return localPlayer:IsFriendsWith(plr.UserId)
-end
-
---------------------------------------------------
--- TARGET FUNCTIONS
---------------------------------------------------
-
-local function getTargetsInRadius()
-	local list = {}
-	
-	local myChar = localPlayer.Character
-	if not myChar then return list end
-	
-	local myRoot = myChar:FindFirstChild("HumanoidRootPart")
-	if not myRoot then return list end
-	
-	for _, plr in pairs(Players:GetPlayers()) do
-		if plr ~= localPlayer and plr.Character then
-			
-			if ignoreFriends and isFriend(plr) then
-				continue
-			end
-			
-			local humanoid =
-				plr.Character:FindFirstChildOfClass("Humanoid")
-			local root =
-				plr.Character:FindFirstChild("HumanoidRootPart")
-			
-			if humanoid and root and humanoid.Health > 0 then
-				
-				local dist =
-					(root.Position - myRoot.Position).Magnitude
-				
-				if dist <= SWAP_RADIUS then
-					table.insert(list,{
-						char = plr.Character,
-						dist = dist
-					})
-				end
-			end
-		end
-	end
-	
-	table.sort(list,function(a,b)
-		return a.dist < b.dist
-	end)
-	
-	return list
-end
 
 local function getClosestTarget()
 	local closest = nil
-	local shortest = math.huge
-	
-	for _, plr in pairs(Players:GetPlayers()) do
-		if plr ~= localPlayer and plr.Character then
-			
-			if ignoreFriends and isFriend(plr) then
-				continue
-			end
-			
-			local humanoid =
-				plr.Character:FindFirstChildOfClass("Humanoid")
-			local head =
-				plr.Character:FindFirstChild("Head")
-			
-			if humanoid and head and humanoid.Health > 0 then
-				
-				local pos,onScreen =
-					camera:WorldToViewportPoint(head.Position)
-				
-				if onScreen then
-					local center = Vector2.new(
-						camera.ViewportSize.X/2,
-						camera.ViewportSize.Y/2
-					)
-					
-					local dist =
-						(Vector2.new(pos.X,pos.Y)-center).Magnitude
-					
-					if dist < shortest then
-						shortest = dist
-						closest = plr.Character
+	local closestAngle = math.huge
+
+	local camPos = Camera.CFrame.Position
+	local camLook = Camera.CFrame.LookVector
+
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			local char = getCharacter(player)
+
+			if char and isAlive(char) then
+				local hrp = char.HumanoidRootPart
+				local distance = (hrp.Position - camPos).Magnitude
+
+				if distance <= LOCK_RADIUS then
+					local direction = (hrp.Position - camPos).Unit
+					local angle = math.acos(camLook:Dot(direction))
+
+					if angle < closestAngle then
+						closestAngle = angle
+						closest = char
 					end
 				end
 			end
 		end
 	end
-	
+
 	return closest
 end
 
 --------------------------------------------------
--- INPUT
+-- CAMERA LOCK FUNCTION
 --------------------------------------------------
 
-UIS.InputBegan:Connect(function(input,gp)
-	if gp then return end
-	
-	if input.KeyCode == Enum.KeyCode.F1 then
-		espOn = not espOn
-		
-		if espOn then
-			for _,plr in pairs(Players:GetPlayers()) do
-				if plr ~= localPlayer and plr.Character then
-					createESP(plr.Character)
-				end
-			end
-		else
-			clearESP()
-		end
-	end
-	
-	if input.KeyCode == Enum.KeyCode.F2 then
-		aimbotEnabled = not aimbotEnabled
-		target = nil
-	end
-	
-	if input.KeyCode == Enum.KeyCode.F3 then
-		ignoreFriends = not ignoreFriends
-	end
-	
-	if input.KeyCode == Enum.KeyCode.F4 then
-		
-		if not aimbotEnabled then return end
-		
-		local targets = getTargetsInRadius()
-		if #targets == 0 then return end
-		
-		local index = 1
-		
-		for i,v in pairs(targets) do
-			if v.char == target then
-				index = i + 1
-				break
-			end
-		end
-		
-		if index > #targets then
-			index = 1
-		end
-		
-		target = targets[index].char
-	end
-	
-	-- Right click start aiming
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = true
-	end
-end)
+local function updateLock()
+	if not lockSystemEnabled then return end
+	if not rightClickHeld then return end
 
-UIS.InputEnded:Connect(function(input,gp)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = false
-	end
-end)
+	-- Recalculate target every hold
+	currentTarget = getClosestTarget()
 
---------------------------------------------------
--- AIMBOT LOOP (RMB HOLD)
---------------------------------------------------
+	if not currentTarget then return end
+
+	local hrp = currentTarget:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local camCF = Camera.CFrame
+	local targetCF = CFrame.new(camCF.Position, hrp.Position)
+
+	Camera.CFrame = camCF:Lerp(targetCF, LOCK_SMOOTHNESS)
+end
 
 RunService.RenderStepped:Connect(function()
-	if not aimbotEnabled or not aiming then return end
-	
-	-- Always re-target the closest player while aiming
-	target = getClosestTarget()
-	
-	if not target then return end
-	
-	local head = target:FindFirstChild("Head")
-	
-	if head then
-		camera.CFrame =
-			CFrame.new(
-				camera.CFrame.Position,
-				head.Position
-			)
+	if currentTarget and not isAlive(currentTarget) then
+		currentTarget = nil
+	end
+
+	updateLock()
+end)
+
+--------------------------------------------------
+-- INPUT HANDLING
+--------------------------------------------------
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+
+	-- Toggle system
+	if input.KeyCode == LOCK_TOGGLE_KEY then
+		lockSystemEnabled = not lockSystemEnabled
+		print("Lock System:", lockSystemEnabled and "ENABLED" or "DISABLED")
+	end
+
+	-- Right click hold
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightClickHeld = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		rightClickHeld = false
+		currentTarget = nil
 	end
 end)
 
 --------------------------------------------------
--- RESPAWN ESP
+-- ESP SYSTEM
 --------------------------------------------------
 
-local function onPlayer(plr)
-	plr.CharacterAdded:Connect(function(char)
-		if espOn and plr ~= localPlayer then
-			task.wait(0.5)
-			createESP(char)
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ESP_FOLDER"
+espFolder.Parent = workspace
+
+local function createESP(player)
+	if player == LocalPlayer then return end
+
+	local function attach(char)
+		local head = char:WaitForChild("Head", 5)
+		local hum = char:WaitForChild("Humanoid", 5)
+
+		if not head or not hum then return end
+
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "ESP"
+		billboard.Size = UDim2.new(0, 200, 0, 50)
+		billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+		billboard.AlwaysOnTop = true
+		billboard.Parent = head
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.fromRGB(255, 80, 80)
+		label.TextStrokeTransparency = 0
+		label.TextScaled = true
+		label.Font = Enum.Font.SourceSansBold
+		label.Parent = billboard
+
+		-- Update text
+		local function update()
+			label.Text =
+				player.Name ..
+				" | HP: " ..
+				math.floor(hum.Health)
 		end
-	end)
+
+		update()
+
+		hum.HealthChanged:Connect(update)
+	end
+
+	-- Handle respawns
+	if player.Character then
+		attach(player.Character)
+	end
+
+	player.CharacterAdded:Connect(attach)
 end
 
-for _,plr in pairs(Players:GetPlayers()) do
-	onPlayer(plr)
+--------------------------------------------------
+-- INITIALIZE ESP
+--------------------------------------------------
+
+if ESP_ENABLED then
+	for _, plr in pairs(Players:GetPlayers()) do
+		createESP(plr)
+	end
+
+	Players.PlayerAdded:Connect(createESP)
 end
 
-Players.PlayerAdded:Connect(onPlayer)
+--------------------------------------------------
+-- DEBUG UI PRINT
+--------------------------------------------------
+
+print("Combat Testing Tool Loaded")
+print("Press Q to toggle Lock-On")
+print("Hold Right Click to aim-lock")
