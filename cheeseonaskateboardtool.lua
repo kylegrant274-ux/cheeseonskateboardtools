@@ -153,7 +153,10 @@ end)
 RunService.RenderStepped:Connect(function()
 	if not aimbotEnabled or not aiming then return end
 	
-	target = getClosestTarget()
+	-- Only acquire new target if we don't have one or current target is dead
+	if not target or not target.Parent or not target:FindFirstChild("Humanoid") or target:FindFirstChildOfClass("Humanoid").Health <= 0 then
+		target = getClosestTarget()
+	end
 	
 	if not target then return end
 	
@@ -260,19 +263,9 @@ task.spawn(function()
 		end
 	})
 	
-	Tabs.Info:CreateParagraph("Combat", {
-		Title = "Combat Tab",
-		Content = "Toggle Aimbot on/off. Hold right mouse button to aim at closest player."
-	})
-	
-	Tabs.Info:CreateParagraph("Visuals", {
-		Title = "Visuals Tab",
-		Content = "Toggle ESP on/off to see all players through walls with health."
-	})
-	
-	Tabs.Info:CreateParagraph("Settings", {
-		Title = "Settings Tab",
-		Content = "Toggle friend check to avoid targeting your friends."
+	Tabs.Info:CreateParagraph("Tab Info", {
+		Title = "Overview",
+		Content = "Combat - Toggle Aimbot on/off | Visuals - Toggle ESP on/off | Settings - Configure targeting | Info - Help and commands"
 	})
 	
 	Tabs.Info:CreateButton({
