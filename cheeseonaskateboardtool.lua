@@ -18,19 +18,18 @@ local target = nil
 local espObjects = {}
 local SWAP_RADIUS = 500
 
--- Movement
+-- Tools settings
 local flyEnabled = false
 local flySpeed = 50
 local walkSpeed = 16
 local flying = false
 local flyConnection = nil
-local flyBodies = {}
 
--- ESP Color
-local espColor = Color3.fromRGB(255,0,0)
+-- ESP color settings
+local espColor = Color3.fromRGB(255, 0, 0)
 
 --------------------------------------------------
--- ESP
+-- ESP SYSTEM
 --------------------------------------------------
 
 local function createESP(character)
@@ -63,8 +62,12 @@ local function createESP(character)
 	
 	task.spawn(function()
 		while humanoid.Parent and espOn do
-			text.Text = character.Name .. "\nHP: " .. math.floor(humanoid.Health)
-			if highlight.Parent then
+			text.Text =
+				character.Name ..
+				"\nHP: " ..
+				math.floor(humanoid.Health)
+			-- Update highlight color dynamically
+			if highlight and highlight.Parent then
 				highlight.FillColor = espColor
 			end
 			task.wait(0.1)
@@ -86,8 +89,59 @@ local function clearESP()
 end
 
 --------------------------------------------------
--- AIMBOT
+-- FRIEND CHECK
 --------------------------------------------------
+
+local function isFriend(plr)
+	return localPlayer:IsFriendsWith(plr.UserId)
+end
+
+--------------------------------------------------
+-- TARGET FUNCTIONS
+--------------------------------------------------
+
+local function getTargetsInRadius()
+	local list = {}
+	
+	local myChar = localPlayer.Character
+	if not myChar then return list end
+	
+	local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return list end
+	
+	for _, plr in pairs(Players:GetPlayers()) do
+		if plr ~= localPlayer and plr.Character then
+			
+			if ignoreFriends and isFriend(plr) then
+				continue
+			end
+			
+			local humanoid =
+				plr.Character:FindFirstChildOfClass("Humanoid")
+			local root =
+				plr.Character:FindFirstChild("HumanoidRootPart")
+			
+			if humanoid and root and humanoid.Health > 0 then
+				
+				local dist =
+					(root.Position - myRoot.Position).Magnitude
+				
+				if dist <= SWAP_RADIUS then
+					table.insert(list,{
+						char = plr.Character,
+						dist = dist
+					})
+				end
+			end
+		end
+	end
+	
+	table.sort(list,function(a,b)
+		return a.dist < b.dist
+	end)
+	
+	return list
+end
 
 local function getClosestTarget()
 	local closest = nil
@@ -96,12 +150,19 @@ local function getClosestTarget()
 	for _, plr in pairs(Players:GetPlayers()) do
 		if plr ~= localPlayer and plr.Character then
 			
-			local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-			local head = plr.Character:FindFirstChild("Head")
+			if ignoreFriends and isFriend(plr) then
+				continue
+			end
+			
+			local humanoid =
+				plr.Character:FindFirstChildOfClass("Humanoid")
+			local head =
+				plr.Character:FindFirstChild("Head")
 			
 			if humanoid and head and humanoid.Health > 0 then
 				
-				local pos,onScreen = camera:WorldToViewportPoint(head.Position)
+				local pos,onScreen =
+					camera:WorldToViewportPoint(head.Position)
 				
 				if onScreen then
 					local center = Vector2.new(
@@ -109,7 +170,8 @@ local function getClosestTarget()
 						camera.ViewportSize.Y/2
 					)
 					
-					local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
+					local dist =
+						(Vector2.new(pos.X,pos.Y)-center).Magnitude
 					
 					if dist < shortest then
 						shortest = dist
@@ -123,76 +185,90 @@ local function getClosestTarget()
 	return closest
 end
 
-UIS.InputBegan:Connect(function(i,gp)
-	if gp then return end
-	if i.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = true
-	end
-end)
-
-UIS.InputEnded:Connect(function(i)
-	if i.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = false
-	end
-end)
-
-RunService.RenderStepped:Connect(function()
-	if not aimbotEnabled or not aiming then return end
-	
-	target = getClosestTarget()
-	if not target then return end
-	
-	local head = target:FindFirstChild("Head")
-	if head then
-		camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position)
-	end
-end)
-
 --------------------------------------------------
--- FLY
+-- FLY SYSTEM
 --------------------------------------------------
+
+local flyBodies = {}
 
 local function startFlying()
 	if flying then return end
 	flying = true
 	
-	local char = localPlayer.Character
-	if not char then return end
+	local myChar = localPlayer.Character
+	if not myChar then return end
 	
-	local root = char:FindFirstChild("HumanoidRootPart")
-	if not root then return end
+	local rootPart = myChar:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
 	
-	local bv = Instance.new("BodyVelocity")
-	bv.MaxForce = Vector3.new(math.huge,math.huge,math.huge)
-	bv.Velocity = Vector3.zero
-	bv.Parent = root
+	-- Clean up any existing bodies first
+	if flyBodies.velocity and flyBodies.velocity.Parent then
+		flyBodies.velocity:Destroy()
+	end
+	if flyBodies.gyro and flyBodies.gyro.Parent then
+		flyBodies.gyro:Destroy()
+	end
 	
-	local bg = Instance.new("BodyGyro")
-	bg.MaxTorque = Vector3.new(math.huge,math.huge,math.huge)
-	bg.P = 10000
-	bg.Parent = root
+	-- Create BodyVelocity for flying
+	local bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Name = "FlyVelocity"
+	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+	bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	bodyVelocity.Parent = rootPart
 	
-	flyBodies = {bv= bv, bg= bg}
+	-- Create BodyGyro for rotation
+	local bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.Name = "FlyGyro"
+	bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+	bodyGyro.P = 10000
+	bodyGyro.Parent = rootPart
+	
+	flyBodies.velocity = bodyVelocity
+	flyBodies.gyro = bodyGyro
+	flyBodies.rootPart = rootPart
+	
+	if flyConnection then
+		flyConnection:Disconnect()
+	end
 	
 	flyConnection = RunService.RenderStepped:Connect(function()
-		if not flyEnabled then return end
-		
-		bg.CFrame = camera.CFrame
-		
-		local dir = Vector3.zero
-		
-		if UIS:IsKeyDown(Enum.KeyCode.W) then dir += camera.CFrame.LookVector end
-		if UIS:IsKeyDown(Enum.KeyCode.S) then dir -= camera.CFrame.LookVector end
-		if UIS:IsKeyDown(Enum.KeyCode.A) then dir -= camera.CFrame.RightVector end
-		if UIS:IsKeyDown(Enum.KeyCode.D) then dir += camera.CFrame.RightVector end
-		if UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
-		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0) end
-		
-		if dir.Magnitude > 0 then
-			dir = dir.Unit
+		if not flyEnabled then
+			stopFlying()
+			return
 		end
 		
-		bv.Velocity = dir * flySpeed
+		if not rootPart or not rootPart.Parent or not bodyVelocity.Parent or not bodyGyro.Parent then
+			stopFlying()
+			return
+		end
+		
+		bodyGyro.CFrame = camera.CFrame
+		
+		local moveDirection = Vector3.new(0, 0, 0)
+		if UIS:IsKeyDown(Enum.KeyCode.W) then
+			moveDirection = moveDirection + (camera.CFrame.LookVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.S) then
+			moveDirection = moveDirection - (camera.CFrame.LookVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.A) then
+			moveDirection = moveDirection - (camera.CFrame.RightVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.D) then
+			moveDirection = moveDirection + (camera.CFrame.RightVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.Space) then
+			moveDirection = moveDirection + Vector3.new(0, 1, 0)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+			moveDirection = moveDirection - Vector3.new(0, 1, 0)
+		end
+		
+		if moveDirection.Magnitude > 0 then
+			moveDirection = moveDirection.Unit
+		end
+		
+		bodyVelocity.Velocity = moveDirection * flySpeed
 	end)
 end
 
@@ -204,142 +280,319 @@ local function stopFlying()
 		flyConnection = nil
 	end
 	
-	local char = localPlayer.Character
-	if char then
-		local root = char:FindFirstChild("HumanoidRootPart")
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		
-		if root then
-			root.Velocity = Vector3.zero
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.AssemblyAngularVelocity = Vector3.zero
-		end
-		
-		if hum then
-			hum.PlatformStand = false
-			hum:ChangeState(Enum.HumanoidStateType.Freefall)
-		end
+	if flyBodies.velocity and flyBodies.velocity.Parent then
+		flyBodies.velocity:Destroy()
 	end
 	
-	for _,v in pairs(flyBodies) do
-		if typeof(v) == "Instance" then
-			v:Destroy()
-		end
+	if flyBodies.gyro and flyBodies.gyro.Parent then
+		flyBodies.gyro:Destroy()
 	end
 	
 	flyBodies = {}
 end
 
 --------------------------------------------------
--- UI
+-- WALK SPEED SYSTEM
+--------------------------------------------------
+
+local function updateWalkSpeed()
+	local myChar = localPlayer.Character
+	if myChar then
+		local humanoid = myChar:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = walkSpeed
+		end
+	end
+end
+
+-- Update walk speed when character spawns
+localPlayer.CharacterAdded:Connect(function()
+	task.wait(0.1)
+	updateWalkSpeed()
+end)
+
+--------------------------------------------------
+-- INPUT (KEYBOARD SHORTCUTS)
+--------------------------------------------------
+
+UIS.InputBegan:Connect(function(input,gp)
+	if gp then return end
+	
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		aiming = true
+	end
+end)
+
+UIS.InputEnded:Connect(function(input,gp)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		aiming = false
+	end
+end)
+
+--------------------------------------------------
+-- AIMBOT LOOP (RMB HOLD)
+--------------------------------------------------
+
+RunService.RenderStepped:Connect(function()
+	if not aimbotEnabled or not aiming then return end
+	
+	target = getClosestTarget()
+	
+	if not target then return end
+	
+	local head = target:FindFirstChild("Head")
+	
+	if head then
+		camera.CFrame =
+			CFrame.new(
+				camera.CFrame.Position,
+				head.Position
+			)
+	end
+end)
+
+--------------------------------------------------
+-- RESPAWN ESP
+--------------------------------------------------
+
+local function onPlayer(plr)
+	plr.CharacterAdded:Connect(function(char)
+		if espOn and plr ~= localPlayer then
+			task.wait(0.5)
+			createESP(char)
+		end
+	end)
+end
+
+for _,plr in pairs(Players:GetPlayers()) do
+	onPlayer(plr)
+end
+
+Players.PlayerAdded:Connect(onPlayer)
+
+--------------------------------------------------
+-- FLUENT UI (LOADED IN BACKGROUND)
 --------------------------------------------------
 
 task.spawn(function()
-
-local Library = loadstring(game:HttpGetAsync(
-"https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"
-))()
-
-local Window = Library:CreateWindow({
-	Title = "Cheeseyonaskateboard",
-	SubTitle = "Universal Cheat Script",
-	TabWidth = 120,
-	Size = UDim2.fromOffset(700,560),
-	Theme = "Darker",
-	MinimizeKey = Enum.KeyCode.RightControl
-})
-
-local Tabs = {
-	Combat = Window:CreateTab({Title="Combat"}),
-	Visuals = Window:CreateTab({Title="Visuals"}),
-	Tools = Window:CreateTab({Title="Tools"})
-}
-
---------------------------------------------------
--- SECTIONS (FIXES BLANK UI)
---------------------------------------------------
-
-local CombatSection = Tabs.Combat:CreateSection("Aimbot")
-local VisualSection = Tabs.Visuals:CreateSection("ESP")
-local ToolsSection = Tabs.Tools:CreateSection("Movement")
-
---------------------------------------------------
--- COMBAT
---------------------------------------------------
-
-CombatSection:CreateToggle("Aimbot",{
-	Title="Aimbot",
-	Default=false,
-	Callback=function(v)
-		aimbotEnabled=v
-	end
-})
-
---------------------------------------------------
--- ESP
---------------------------------------------------
-
-VisualSection:CreateToggle("ESP",{
-	Title="ESP",
-	Default=false,
-	Callback=function(v)
-		espOn=v
-		if v then
-			for _,p in pairs(Players:GetPlayers()) do
-				if p~=localPlayer and p.Character then
-					createESP(p.Character)
+	local Library = loadstring(game:HttpGetAsync("https://github.com/ActualMasterOogway/Fluent-Renewed/releases/latest/download/Fluent.luau"))()
+	local SaveManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/SaveManager.luau"))()
+	local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
+	
+	local Window = Library:CreateWindow({
+		Title = "Cheeseyonaskateboard",
+		SubTitle = "Universal Cheat Script",
+		TabWidth = 120,
+		Size = UDim2.fromOffset(700, 560),
+		Acrylic = true,
+		Theme = "Darker",
+		MinSize = Vector2.new(600, 450),
+		MinimizeKey = Enum.KeyCode.RightControl
+	})
+	
+	local Tabs = {
+		Combat = Window:CreateTab({
+			Title = "Combat",
+			Icon = "crosshair"
+		}),
+		Visuals = Window:CreateTab({
+			Title = "Visuals",
+			Icon = "eye"
+		}),
+		Tools = Window:CreateTab({
+			Title = "Tools",
+			Icon = "wrench"
+		}),
+		Settings = Window:CreateTab({
+			Title = "Settings",
+			Icon = "settings"
+		}),
+		Info = Window:CreateTab({
+			Title = "Info",
+			Icon = "info"
+		})
+	}
+	
+	-- COMBAT TAB
+	Tabs.Combat:CreateParagraph("Aimbot", {
+		Title = "Aimbot Controls",
+		Content = "Hold right mouse button to aim. Auto-targets closest player."
+	})
+	
+	local aimbotToggle = Tabs.Combat:CreateToggle("AimbotToggle", {
+		Title = "Aimbot",
+		Default = false,
+		Callback = function(Value)
+			aimbotEnabled = Value
+			target = nil
+		end
+	})
+	
+	-- VISUALS TAB
+	Tabs.Visuals:CreateParagraph("ESP", {
+		Title = "Enemy Highlighting",
+		Content = "Shows all players with health indicators."
+	})
+	
+	local espToggle = Tabs.Visuals:CreateToggle("ESPToggle", {
+		Title = "ESP",
+		Default = false,
+		Callback = function(Value)
+			espOn = Value
+			if espOn then
+				for _,plr in pairs(Players:GetPlayers()) do
+					if plr ~= localPlayer and plr.Character then
+						createESP(plr.Character)
+					end
 				end
+			else
+				clearESP()
 			end
-		else
-			clearESP()
 		end
-	end
-})
-
-VisualSection:CreateColorPicker("ESPColor",{
-	Title="ESP Color",
-	Default=espColor,
-	Callback=function(v)
-		espColor=v
-	end
-})
-
---------------------------------------------------
--- TOOLS
---------------------------------------------------
-
-ToolsSection:CreateToggle("Fly",{
-	Title="Fly",
-	Default=false,
-	Callback=function(v)
-		flyEnabled=v
-		if v then startFlying() else stopFlying() end
-	end
-})
-
-ToolsSection:CreateSlider("FlySpeed",{
-	Title="Fly Speed",
-	Min=10,
-	Max=200,
-	Default=50,
-	Callback=function(v)
-		flySpeed=v
-	end
-})
-
-ToolsSection:CreateSlider("WalkSpeed",{
-	Title="Walk Speed",
-	Min=5,
-	Max=100,
-	Default=16,
-	Callback=function(v)
-		walkSpeed=v
-		local char = localPlayer.Character
-		if char then
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			if hum then hum.WalkSpeed=v end
+	})
+	
+	-- ESP Color Sliders
+	Tabs.Visuals:CreateLabel("ESP Color", true)
+	
+	local espColorR = Tabs.Visuals:CreateSlider("ESPColorR", {
+		Title = "Red",
+		Min = 0,
+		Max = 255,
+		Default = 255,
+		Step = 1,
+		Callback = function(Value)
+			local g = math.floor(espColor.G * 255)
+			local b = math.floor(espColor.B * 255)
+			espColor = Color3.fromRGB(Value, g, b)
 		end
-	end
-})
-
+	})
+	
+	local espColorG = Tabs.Visuals:CreateSlider("ESPColorG", {
+		Title = "Green",
+		Min = 0,
+		Max = 255,
+		Default = 0,
+		Step = 1,
+		Callback = function(Value)
+			local r = math.floor(espColor.R * 255)
+			local b = math.floor(espColor.B * 255)
+			espColor = Color3.fromRGB(r, Value, b)
+		end
+	})
+	
+	local espColorB = Tabs.Visuals:CreateSlider("ESPColorB", {
+		Title = "Blue",
+		Min = 0,
+		Max = 255,
+		Default = 0,
+		Step = 1,
+		Callback = function(Value)
+			local r = math.floor(espColor.R * 255)
+			local g = math.floor(espColor.G * 255)
+			espColor = Color3.fromRGB(r, g, Value)
+		end
+	})
+	
+	-- TOOLS TAB
+	Tabs.Tools:CreateParagraph("Movement", {
+		Title = "Movement Tools",
+		Content = "Enhance your movement capabilities."
+	})
+	
+	local flyToggle = Tabs.Tools:CreateToggle("FlyToggle", {
+		Title = "Fly",
+		Default = false,
+		Callback = function(Value)
+			flyEnabled = Value
+			if flyEnabled then
+				startFlying()
+			else
+				stopFlying()
+			end
+		end
+	})
+	
+	local flySpeedSlider = Tabs.Tools:CreateSlider("FlySpeedSlider", {
+		Title = "Fly Speed",
+		Description = "Control your flying speed",
+		Min = 10,
+		Max = 200,
+		Default = 50,
+		Step = 5,
+		Suffix = " speed",
+		Callback = function(Value)
+			flySpeed = Value
+		end
+	})
+	
+	local walkSpeedSlider = Tabs.Tools:CreateSlider("WalkSpeedSlider", {
+		Title = "Walk Speed",
+		Description = "Control your walking speed",
+		Min = 5,
+		Max = 100,
+		Default = 16,
+		Step = 1,
+		Suffix = " speed",
+		Callback = function(Value)
+			walkSpeed = Value
+			updateWalkSpeed()
+		end
+	})
+	
+	-- SETTINGS TAB
+	Tabs.Settings:CreateParagraph("Filters", {
+		Title = "Target Filters",
+		Content = "Configure who can be targeted."
+	})
+	
+	local friendCheckToggle = Tabs.Settings:CreateToggle("FriendCheck", {
+		Title = "Ignore Friends",
+		Default = false,
+		Callback = function(Value)
+			ignoreFriends = Value
+		end
+	})
+	
+	local radiusSlider = Tabs.Settings:CreateSlider("RadiusSlider", {
+		Title = "Target Radius",
+		Description = "Maximum distance to target players",
+		Min = 100,
+		Max = 2000,
+		Default = 500,
+		Step = 50,
+		Suffix = " studs",
+		Callback = function(Value)
+			SWAP_RADIUS = Value
+		end
+	})
+	
+	-- INFO TAB
+	Tabs.Info:CreateParagraph("How to Use", {
+		Title = "Getting Started",
+		Content = "1. Enable Aimbot in Combat tab\n2. Enable ESP in Visuals tab\n3. Hold right mouse button to aim\n4. Configure settings as needed"
+	})
+	
+	Tabs.Info:CreateParagraph("Controls", {
+		Title = "Keyboard Shortcuts",
+		Content = "Right Mouse Button - Hold to aim\nRightCtrl - Toggle UI visibility"
+	})
+	
+	Tabs.Info:CreateButton({
+		Title = "Load Infinite Yield",
+		Description = "Load infinite yield commands",
+		Callback = function()
+			loadstring(game:HttpGet(('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'),true))()
+		end
+	})
+	
+	-- Save Manager
+	SaveManager:SetLibrary(Library)
+	InterfaceManager:SetLibrary(Library)
+	SaveManager:IgnoreThemeSettings()
+	SaveManager:SetIgnoreIndexes({})
+	InterfaceManager:SetStyle("Dark")
+	SaveManager:SetFolder("FluentScriptSettings/AimbotESP")
+	InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+	SaveManager:BuildConfigSection(Tabs.Settings)
+	SaveManager:LoadAutoloadConfig()
 end)
