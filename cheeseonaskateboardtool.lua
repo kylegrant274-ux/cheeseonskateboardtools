@@ -18,6 +18,13 @@ local target = nil
 local espObjects = {}
 local SWAP_RADIUS = 500
 
+-- Tools settings
+local flyEnabled = false
+local flySpeed = 50
+local walkSpeed = 16
+local flying = false
+local flyConnection = nil
+
 --------------------------------------------------
 -- ESP SYSTEM
 --------------------------------------------------
@@ -172,6 +179,102 @@ local function getClosestTarget()
 end
 
 --------------------------------------------------
+-- FLY SYSTEM
+--------------------------------------------------
+
+local function startFlying()
+	if flying then return end
+	flying = true
+	
+	local myChar = localPlayer.Character
+	if not myChar then return end
+	
+	local rootPart = myChar:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return end
+	
+	-- Create BodyVelocity for flying
+	local bodyVelocity = Instance.new("BodyVelocity")
+	bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+	bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	bodyVelocity.Parent = rootPart
+	
+	-- Create BodyGyro for rotation
+	local bodyGyro = Instance.new("BodyGyro")
+	bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+	bodyGyro.P = 10000
+	bodyGyro.Parent = rootPart
+	
+	flyConnection = RunService.RenderStepped:Connect(function()
+		if not flyEnabled or not flying or not rootPart.Parent then
+			if flyConnection then
+				flyConnection:Disconnect()
+				flyConnection = nil
+			end
+			if bodyVelocity then bodyVelocity:Destroy() end
+			if bodyGyro then bodyGyro:Destroy() end
+			flying = false
+			return
+		end
+		
+		bodyGyro.CFrame = camera.CFrame
+		
+		local moveDirection = Vector3.new(0, 0, 0)
+		if UIS:IsKeyDown(Enum.KeyCode.W) then
+			moveDirection = moveDirection + (camera.CFrame.LookVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.S) then
+			moveDirection = moveDirection - (camera.CFrame.LookVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.A) then
+			moveDirection = moveDirection - (camera.CFrame.RightVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.D) then
+			moveDirection = moveDirection + (camera.CFrame.RightVector)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.Space) then
+			moveDirection = moveDirection + Vector3.new(0, 1, 0)
+		end
+		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+			moveDirection = moveDirection - Vector3.new(0, 1, 0)
+		end
+		
+		if moveDirection.Magnitude > 0 then
+			moveDirection = moveDirection.Unit
+		end
+		
+		bodyVelocity.Velocity = moveDirection * flySpeed
+	end)
+end
+
+local function stopFlying()
+	flying = false
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
+	end
+end
+
+--------------------------------------------------
+-- WALK SPEED SYSTEM
+--------------------------------------------------
+
+local function updateWalkSpeed()
+	local myChar = localPlayer.Character
+	if myChar then
+		local humanoid = myChar:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = walkSpeed
+		end
+	end
+end
+
+-- Update walk speed when character spawns
+localPlayer.CharacterAdded:Connect(function()
+	task.wait(0.1)
+	updateWalkSpeed()
+end)
+
+--------------------------------------------------
 -- INPUT (KEYBOARD SHORTCUTS)
 --------------------------------------------------
 
@@ -259,6 +362,10 @@ task.spawn(function()
 			Title = "Visuals",
 			Icon = "eye"
 		}),
+		Tools = Window:CreateTab({
+			Title = "Tools",
+			Icon = "wrench"
+		}),
 		Settings = Window:CreateTab({
 			Title = "Settings",
 			Icon = "settings"
@@ -304,6 +411,52 @@ task.spawn(function()
 			else
 				clearESP()
 			end
+		end
+	})
+	
+	-- TOOLS TAB
+	Tabs.Tools:CreateParagraph("Movement", {
+		Title = "Movement Tools",
+		Content = "Enhance your movement capabilities."
+	})
+	
+	local flyToggle = Tabs.Tools:CreateToggle("FlyToggle", {
+		Title = "Fly",
+		Default = false,
+		Callback = function(Value)
+			flyEnabled = Value
+			if flyEnabled then
+				startFlying()
+			else
+				stopFlying()
+			end
+		end
+	})
+	
+	local flySpeedSlider = Tabs.Tools:CreateSlider("FlySpeedSlider", {
+		Title = "Fly Speed",
+		Description = "Control your flying speed",
+		Min = 10,
+		Max = 200,
+		Default = 50,
+		Step = 5,
+		Suffix = " speed",
+		Callback = function(Value)
+			flySpeed = Value
+		end
+	})
+	
+	local walkSpeedSlider = Tabs.Tools:CreateSlider("WalkSpeedSlider", {
+		Title = "Walk Speed",
+		Description = "Control your walking speed",
+		Min = 5,
+		Max = 100,
+		Default = 16,
+		Step = 1,
+		Suffix = " speed",
+		Callback = function(Value)
+			walkSpeed = Value
+			updateWalkSpeed()
 		end
 	})
 	
