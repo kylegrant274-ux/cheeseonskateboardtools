@@ -6,6 +6,7 @@ local lp = Players.LocalPlayer
 local char = lp.Character or lp.CharacterAdded:Wait()
 local hum = char:WaitForChild("Humanoid")
 local root = char:WaitForChild("HumanoidRootPart")
+local cam = workspace.CurrentCamera
 
 --------------------------------------------------
 -- GUI
@@ -46,6 +47,25 @@ suggestions.Text = ""
 suggestions.Parent = frame
 
 --------------------------------------------------
+-- CONFIRMATION POPUP
+--------------------------------------------------
+
+local function notify(msg)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(0,250,0,30)
+	label.Position = UDim2.new(1,-260,1,-200)
+	label.BackgroundTransparency = 0.3
+	label.BackgroundColor3 = Color3.new(0,0,0)
+	label.TextColor3 = Color3.new(1,1,1)
+	label.Text = msg
+	label.Parent = gui
+	
+	task.delay(2,function()
+		label:Destroy()
+	end)
+end
+
+--------------------------------------------------
 -- COMMAND DATA
 --------------------------------------------------
 
@@ -59,16 +79,6 @@ local commands = {
 }
 
 local waypoints = {}
-
---------------------------------------------------
--- TOGGLES
---------------------------------------------------
-
-local flying = false
-local noclip = false
-local flySpeed = 50
-
-local bv, bg
 
 --------------------------------------------------
 -- AUTOCOMPLETE
@@ -93,11 +103,11 @@ box:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 
 --------------------------------------------------
--- PLAYER FIND (PARTIAL)
+-- PLAYER FIND
 --------------------------------------------------
 
 local function findPlayer(str)
-	str = str:lower()
+	str = (str or ""):lower()
 	
 	for _,plr in pairs(Players:GetPlayers()) do
 		if plr ~= lp then
@@ -109,8 +119,12 @@ local function findPlayer(str)
 end
 
 --------------------------------------------------
--- FLY
+-- FLY (FIXED)
 --------------------------------------------------
+
+local flying = false
+local flySpeed = 50
+local bv, bg
 
 local function toggleFly(speed)
 	flying = not flying
@@ -119,55 +133,59 @@ local function toggleFly(speed)
 		flySpeed = tonumber(speed) or 50
 		
 		bv = Instance.new("BodyVelocity")
-		bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+		bv.MaxForce = Vector3.new(1e6,1e6,1e6)
+		bv.Velocity = Vector3.zero
 		bv.Parent = root
 		
 		bg = Instance.new("BodyGyro")
-		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
+		bg.MaxTorque = Vector3.new(1e6,1e6,1e6)
+		bg.CFrame = root.CFrame
 		bg.Parent = root
 		
+		notify("Fly Enabled ("..flySpeed..")")
 	else
 		if bv then bv:Destroy() end
 		if bg then bg:Destroy() end
+		
+		notify("Fly Disabled")
 	end
 end
 
 RunService.RenderStepped:Connect(function()
-	if flying and bv and bg then
-		bg.CFrame = workspace.CurrentCamera.CFrame
-		
-		local move = hum.MoveDirection
-		bv.Velocity = workspace.CurrentCamera.CFrame:VectorToWorldSpace(move) * flySpeed
-	end
+	if not flying or not bv then return end
+	
+	bg.CFrame = cam.CFrame
+	
+	local moveDir = hum.MoveDirection
+	local camDir = cam.CFrame:VectorToWorldSpace(moveDir)
+	
+	bv.Velocity = camDir * flySpeed
 end)
 
 --------------------------------------------------
--- NOCLIP (SMART FLOOR KEEP)
+-- NOCLIP
 --------------------------------------------------
+
+local noclip = false
 
 RunService.Stepped:Connect(function()
 	if not noclip then return end
 	
 	for _,v in pairs(char:GetDescendants()) do
 		if v:IsA("BasePart") then
-			
-			-- Keep floor collision if grounded
-			if hum.FloorMaterial ~= Enum.Material.Air and not flying then
-				if v.Position.Y < root.Position.Y - 2 then
-					v.CanCollide = true
-				else
-					v.CanCollide = false
-				end
-			else
-				v.CanCollide = false
-			end
-			
+			v.CanCollide = false
 		end
 	end
 end)
 
 local function toggleNoclip()
 	noclip = not noclip
+	
+	if noclip then
+		notify("Noclip Enabled")
+	else
+		notify("Noclip Disabled")
+	end
 end
 
 --------------------------------------------------
@@ -179,8 +197,10 @@ local defaultSpeed = 16
 local function toggleSpeed(val)
 	if hum.WalkSpeed ~= defaultSpeed then
 		hum.WalkSpeed = defaultSpeed
+		notify("Speed Reset")
 	else
 		hum.WalkSpeed = tonumber(val) or 50
+		notify("Speed "..hum.WalkSpeed)
 	end
 end
 
@@ -189,12 +209,15 @@ end
 --------------------------------------------------
 
 local function setWaypoint(name)
+	if not name then return end
 	waypoints[name] = root.Position
+	notify("Waypoint '"..name.."' Set")
 end
 
 local function gotoWaypoint(name)
 	if waypoints[name] then
 		root.CFrame = CFrame.new(waypoints[name])
+		notify("Teleported to '"..name.."'")
 	end
 end
 
@@ -204,7 +227,7 @@ end
 
 local function runCommand(text)
 	local args = text:split(" ")
-	local cmd = args[1]:lower()
+	local cmd = (args[1] or ""):lower()
 	
 	if cmd == "fly" then
 		toggleFly(args[2])
@@ -215,10 +238,11 @@ local function runCommand(text)
 	end
 	
 	if cmd == "goto" then
-		local plr = findPlayer(args[2] or "")
+		local plr = findPlayer(args[2])
 		if plr and plr.Character then
 			root.CFrame =
 				plr.Character.HumanoidRootPart.CFrame
+			notify("Teleported to "..plr.Name)
 		end
 	end
 	
@@ -243,9 +267,11 @@ UIS.InputBegan:Connect(function(input,gp)
 	if gp then return end
 	
 	if input.KeyCode == Enum.KeyCode.Semicolon then
+		
 		frame.Visible = not frame.Visible
 		
 		if frame.Visible then
+			box.Text = "" -- prevents ; appearing
 			box:CaptureFocus()
 		else
 			box:ReleaseFocus()
