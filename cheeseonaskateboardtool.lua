@@ -259,6 +259,20 @@ local function stopFlying()
 		flyConnection:Disconnect()
 		flyConnection = nil
 	end
+	
+	-- Restore normal gravity
+	local myChar = localPlayer.Character
+	if myChar then
+		local rootPart = myChar:FindFirstChild("HumanoidRootPart")
+		if rootPart then
+			-- Remove BodyVelocity and BodyGyro
+			for _, child in pairs(rootPart:GetChildren()) do
+				if child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+					child:Destroy()
+				end
+			end
+		end
+	end
 end
 
 --------------------------------------------------
@@ -418,6 +432,14 @@ task.spawn(function()
 			else
 				clearESP()
 			end
+		end
+	})
+	
+	local espColorPicker = Tabs.Visuals:CreateColorPicker("ESPColorPicker", {
+		Title = "ESP Color",
+		Default = Color3.fromRGB(255, 0, 0),
+		Callback = function(Value)
+			espColor = Value
 		end
 	})
 	
