@@ -25,6 +25,9 @@ local walkSpeed = 16
 local flying = false
 local flyConnection = nil
 
+-- ESP color settings
+local espColor = Color3.fromRGB(255, 0, 0)
+
 --------------------------------------------------
 -- ESP SYSTEM
 --------------------------------------------------
@@ -37,7 +40,7 @@ local function createESP(character)
 	if not humanoid or not head then return end
 	
 	local highlight = Instance.new("Highlight")
-	highlight.FillColor = Color3.fromRGB(255,0,0)
+	highlight.FillColor = espColor
 	highlight.FillTransparency = 0.5
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	highlight.Parent = character
@@ -63,6 +66,10 @@ local function createESP(character)
 				character.Name ..
 				"\nHP: " ..
 				math.floor(humanoid.Health)
+			-- Update highlight color dynamically
+			if highlight and highlight.Parent then
+				highlight.FillColor = espColor
+			end
 			task.wait(0.1)
 		end
 	end)
@@ -345,11 +352,11 @@ task.spawn(function()
 	local Window = Library:CreateWindow({
 		Title = "Aimbot & ESP",
 		SubTitle = "Universal FPS Script",
-		TabWidth = 160,
-		Size = UDim2.fromOffset(580, 460),
+		TabWidth = 120,
+		Size = UDim2.fromOffset(700, 560),
 		Acrylic = true,
 		Theme = "Darker",
-		MinSize = Vector2.new(470, 380),
+		MinSize = Vector2.new(600, 450),
 		MinimizeKey = Enum.KeyCode.RightControl
 	})
 	
