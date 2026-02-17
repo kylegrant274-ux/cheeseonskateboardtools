@@ -364,8 +364,8 @@ task.spawn(function()
 	local InterfaceManager = loadstring(game:HttpGetAsync("https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed/master/Addons/InterfaceManager.luau"))()
 	
 	local Window = Library:CreateWindow({
-		Title = "Aimbot & ESP",
-		SubTitle = "Universal FPS Script",
+		Title = "Cheeseyonaskateboard",
+		SubTitle = "Universal Cheat Script",
 		TabWidth = 120,
 		Size = UDim2.fromOffset(700, 560),
 		Acrylic = true,
