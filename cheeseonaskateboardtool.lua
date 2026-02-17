@@ -259,10 +259,6 @@ task.spawn(function()
 			Title = "Visuals",
 			Icon = "eye"
 		}),
-		Tools = Window:CreateTab({
-			Title = "Tools",
-			Icon = "wrench"
-		}),
 		Settings = Window:CreateTab({
 			Title = "Settings",
 			Icon = "settings"
@@ -311,14 +307,6 @@ task.spawn(function()
 		end
 	})
 	
-	-- TOOLS TAB
-	Tabs.Tools:CreateParagraph("Movement", {
-		Title = "Movement Tools",
-		Content = "Enhance your movement capabilities."
-	})
-	
-	Tabs.Tools:CreateLabel("Coming Soon", true)
-	
 	-- SETTINGS TAB
 	Tabs.Settings:CreateParagraph("Filters", {
 		Title = "Target Filters",
@@ -333,28 +321,20 @@ task.spawn(function()
 		end
 	})
 	
-	local radiusSlider = Tabs.Settings:CreateSlider("RadiusSlider", {
-		Title = "Target Radius",
-		Description = "Maximum distance to target players",
-		Min = 100,
-		Max = 2000,
-		Default = 500,
-		Step = 50,
-		Suffix = " studs",
-		Callback = function(Value)
-			SWAP_RADIUS = Value
-		end
-	})
-	
 	-- INFO TAB
-	Tabs.Info:CreateParagraph("How to Use", {
-		Title = "Getting Started",
-		Content = "1. Enable Aimbot in Combat tab\n2. Enable ESP in Visuals tab\n3. Hold right mouse button to aim\n4. Configure settings as needed"
+	Tabs.Info:CreateParagraph("Combat Tab", {
+		Title = "Combat",
+		Content = "Enable or disable the Aimbot. Hold right mouse button to aim at the closest enemy."
 	})
 	
-	Tabs.Info:CreateParagraph("Controls", {
-		Title = "Keyboard Shortcuts",
-		Content = "Right Mouse Button - Hold to aim\nRightCtrl - Toggle UI visibility"
+	Tabs.Info:CreateParagraph("Visuals Tab", {
+		Title = "Visuals",
+		Content = "Enable or disable ESP to see all players through walls with health indicators."
+	})
+	
+	Tabs.Info:CreateParagraph("Settings Tab", {
+		Title = "Settings",
+		Content = "Configure aimbot and ESP settings. Toggle friend check to avoid targeting friends."
 	})
 	
 	Tabs.Info:CreateButton({
