@@ -189,6 +189,8 @@ end
 -- FLY SYSTEM
 --------------------------------------------------
 
+local flyBodies = {}
+
 local function startFlying()
 	if flying then return end
 	flying = true
@@ -211,15 +213,16 @@ local function startFlying()
 	bodyGyro.P = 10000
 	bodyGyro.Parent = rootPart
 	
+	flyBodies.velocity = bodyVelocity
+	flyBodies.gyro = bodyGyro
+	
 	flyConnection = RunService.RenderStepped:Connect(function()
-		if not flyEnabled or not flying or not rootPart.Parent then
-			if flyConnection then
-				flyConnection:Disconnect()
-				flyConnection = nil
-			end
-			if bodyVelocity then bodyVelocity:Destroy() end
-			if bodyGyro then bodyGyro:Destroy() end
-			flying = false
+		if not flyEnabled or not flying then
+			return
+		end
+		
+		if not rootPart or not rootPart.Parent then
+			stopFlying()
 			return
 		end
 		
@@ -255,23 +258,20 @@ end
 
 local function stopFlying()
 	flying = false
+	
 	if flyConnection then
 		flyConnection:Disconnect()
 		flyConnection = nil
 	end
 	
-	-- Restore normal gravity
-	local myChar = localPlayer.Character
-	if myChar then
-		local rootPart = myChar:FindFirstChild("HumanoidRootPart")
-		if rootPart then
-			-- Remove BodyVelocity and BodyGyro
-			for _, child in pairs(rootPart:GetChildren()) do
-				if child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-					child:Destroy()
-				end
-			end
-		end
+	if flyBodies.velocity then
+		flyBodies.velocity:Destroy()
+		flyBodies.velocity = nil
+	end
+	
+	if flyBodies.gyro then
+		flyBodies.gyro:Destroy()
+		flyBodies.gyro = nil
 	end
 end
 
@@ -435,8 +435,10 @@ task.spawn(function()
 		end
 	})
 	
+	Tabs.Visuals:CreateLabel("Color Picker", true)
+	
 	local espColorPicker = Tabs.Visuals:CreateColorPicker("ESPColorPicker", {
-		Title = "ESP Color",
+		Title = "Color",
 		Default = Color3.fromRGB(255, 0, 0),
 		Callback = function(Value)
 			espColor = Value
