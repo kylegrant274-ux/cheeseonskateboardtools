@@ -201,7 +201,7 @@ task.spawn(function()
 	
 	local Window = Library:CreateWindow({
 		Title = "Aimbot & ESP",
-		SubTitle = "Universal FPS Script v1.0.0",
+		SubTitle = "Universal FPS Script v1.0.1",
 		TabWidth = 160,
 		Size = UDim2.fromOffset(600, 400),
 		Acrylic = true,
@@ -263,9 +263,9 @@ task.spawn(function()
 		end
 	})
 	
-	Tabs.Info:CreateParagraph("Tab Info", {
-		Title = "Overview",
-		Content = "Combat - Toggle Aimbot on/off | Visuals - Toggle ESP on/off | Settings - Configure targeting | Info - Help and commands"
+	Tabs.Info:CreateParagraph("Tabs", {
+		Title = " ",
+		Content = "Combat: Toggle Aimbot | Visuals: Toggle ESP | Settings: Ignore Friends | Info: Help"
 	})
 	
 	Tabs.Info:CreateButton({
