@@ -2,221 +2,260 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
-local localPlayer = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+local lp = Players.LocalPlayer
+local char = lp.Character or lp.CharacterAdded:Wait()
+local hum = char:WaitForChild("Humanoid")
+local root = char:WaitForChild("HumanoidRootPart")
 
 --------------------------------------------------
--- SETTINGS
+-- GUI
 --------------------------------------------------
 
-local espOn = false
-local aimbotEnabled = false -- F2 toggle
-local aiming = false -- Right click hold
-local ignoreFriends = false
-local target = nil
+local gui = Instance.new("ScreenGui")
+gui.Name = "CmdConsole"
+gui.ResetOnSpawn = false
+gui.Parent = lp.PlayerGui
 
-local espObjects = {}
-local SWAP_RADIUS = 500
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,300,0,150)
+frame.Position = UDim2.new(1,-310,1,-160)
+frame.BackgroundTransparency = 0.2
+frame.BackgroundColor3 = Color3.new(0,0,0)
+frame.Visible = false
+frame.Parent = gui
+
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(1,-10,0,30)
+box.Position = UDim2.new(0,5,1,-35)
+box.BackgroundColor3 = Color3.new(0.1,0.1,0.1)
+box.TextColor3 = Color3.new(1,1,1)
+box.ClearTextOnFocus = false
+box.Text = ""
+box.Parent = frame
+
+local suggestions = Instance.new("TextLabel")
+suggestions.Size = UDim2.new(1,-10,1,-40)
+suggestions.Position = UDim2.new(0,5,0,5)
+suggestions.BackgroundTransparency = 1
+suggestions.TextColor3 = Color3.new(1,1,1)
+suggestions.TextXAlignment = Enum.TextXAlignment.Left
+suggestions.TextYAlignment = Enum.TextYAlignment.Top
+suggestions.Font = Enum.Font.Code
+suggestions.TextSize = 14
+suggestions.Text = ""
+suggestions.Parent = frame
 
 --------------------------------------------------
--- ESP SYSTEM (UNCHANGED)
+-- COMMAND DATA
 --------------------------------------------------
 
-local function createESP(character)
-	if espObjects[character] then return end
+local commands = {
+	"fly",
+	"speed",
+	"goto",
+	"swp",
+	"wp",
+	"noclip"
+}
+
+local waypoints = {}
+
+--------------------------------------------------
+-- TOGGLES
+--------------------------------------------------
+
+local flying = false
+local noclip = false
+local flySpeed = 50
+
+local bv, bg
+
+--------------------------------------------------
+-- AUTOCOMPLETE
+--------------------------------------------------
+
+local function updateSuggestions(text)
+	text = text:lower()
 	
-	local humanoid = character:FindFirstChildOfClass("Humanoid")
-	local head = character:FindFirstChild("Head")
-	if not humanoid or not head then return end
+	local list = {}
 	
-	local highlight = Instance.new("Highlight")
-	highlight.FillColor = Color3.fromRGB(255,0,0)
-	highlight.FillTransparency = 0.5
-	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	highlight.Parent = character
-	
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.new(0,200,0,50)
-	billboard.StudsOffset = Vector3.new(0,2.5,0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = head
-	
-	local text = Instance.new("TextLabel")
-	text.Size = UDim2.new(1,0,1,0)
-	text.BackgroundTransparency = 1
-	text.TextColor3 = Color3.new(1,1,1)
-	text.TextStrokeTransparency = 0
-	text.Font = Enum.Font.SourceSansBold
-	text.TextScaled = true
-	text.Parent = billboard
-	
-	task.spawn(function()
-		while humanoid.Parent and espOn do
-			text.Text =
-				character.Name ..
-				"\nHP: " ..
-				math.floor(humanoid.Health)
-			task.wait(0.1)
+	for _,cmd in pairs(commands) do
+		if cmd:sub(1,#text) == text then
+			table.insert(list,cmd)
 		end
-	end)
-	
-	espObjects[character] = {
-		highlight = highlight,
-		gui = billboard
-	}
-end
-
-local function clearESP()
-	for _, obj in pairs(espObjects) do
-		if obj.highlight then obj.highlight:Destroy() end
-		if obj.gui then obj.gui:Destroy() end
 	end
-	espObjects = {}
+	
+	suggestions.Text = table.concat(list,"\n")
 end
 
---------------------------------------------------
--- FRIEND CHECK
---------------------------------------------------
-
-local function isFriend(plr)
-	return localPlayer:IsFriendsWith(plr.UserId)
-end
+box:GetPropertyChangedSignal("Text"):Connect(function()
+	updateSuggestions(box.Text)
+end)
 
 --------------------------------------------------
--- 🔧 FIXED TARGET FUNCTION
+-- PLAYER FIND (PARTIAL)
 --------------------------------------------------
 
-local function getClosestTarget()
-	local closest = nil
-	local bestScore = math.huge
+local function findPlayer(str)
+	str = str:lower()
 	
-	local camPos = camera.CFrame.Position
-	local camLook = camera.CFrame.LookVector
-	
-	for _, plr in pairs(Players:GetPlayers()) do
-		if plr ~= localPlayer and plr.Character then
-			
-			if ignoreFriends and isFriend(plr) then
-				continue
+	for _,plr in pairs(Players:GetPlayers()) do
+		if plr ~= lp then
+			if plr.Name:lower():find(str) then
+				return plr
 			end
+		end
+	end
+end
+
+--------------------------------------------------
+-- FLY
+--------------------------------------------------
+
+local function toggleFly(speed)
+	flying = not flying
+	
+	if flying then
+		flySpeed = tonumber(speed) or 50
+		
+		bv = Instance.new("BodyVelocity")
+		bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+		bv.Parent = root
+		
+		bg = Instance.new("BodyGyro")
+		bg.MaxTorque = Vector3.new(1e5,1e5,1e5)
+		bg.Parent = root
+		
+	else
+		if bv then bv:Destroy() end
+		if bg then bg:Destroy() end
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	if flying and bv and bg then
+		bg.CFrame = workspace.CurrentCamera.CFrame
+		
+		local move = hum.MoveDirection
+		bv.Velocity = workspace.CurrentCamera.CFrame:VectorToWorldSpace(move) * flySpeed
+	end
+end)
+
+--------------------------------------------------
+-- NOCLIP (SMART FLOOR KEEP)
+--------------------------------------------------
+
+RunService.Stepped:Connect(function()
+	if not noclip then return end
+	
+	for _,v in pairs(char:GetDescendants()) do
+		if v:IsA("BasePart") then
 			
-			local humanoid =
-				plr.Character:FindFirstChildOfClass("Humanoid")
-			local head =
-				plr.Character:FindFirstChild("Head")
-			
-			if humanoid and head and humanoid.Health > 0 then
-				
-				local distance =
-					(head.Position - camPos).Magnitude
-				
-				if distance <= SWAP_RADIUS then
-					
-					-- Direction from camera to player
-					local direction =
-						(head.Position - camPos).Unit
-					
-					-- How close to crosshair aim
-					local angle =
-						math.acos(camLook:Dot(direction))
-					
-					-- Combine aim + distance
-					local score = angle + (distance / 1000)
-					
-					if score < bestScore then
-						bestScore = score
-						closest = plr.Character
-					end
+			-- Keep floor collision if grounded
+			if hum.FloorMaterial ~= Enum.Material.Air and not flying then
+				if v.Position.Y < root.Position.Y - 2 then
+					v.CanCollide = true
+				else
+					v.CanCollide = false
 				end
+			else
+				v.CanCollide = false
 			end
+			
 		end
 	end
-	
-	return closest
+end)
+
+local function toggleNoclip()
+	noclip = not noclip
 end
 
 --------------------------------------------------
--- INPUT
+-- SPEED
+--------------------------------------------------
+
+local defaultSpeed = 16
+
+local function toggleSpeed(val)
+	if hum.WalkSpeed ~= defaultSpeed then
+		hum.WalkSpeed = defaultSpeed
+	else
+		hum.WalkSpeed = tonumber(val) or 50
+	end
+end
+
+--------------------------------------------------
+-- WAYPOINTS
+--------------------------------------------------
+
+local function setWaypoint(name)
+	waypoints[name] = root.Position
+end
+
+local function gotoWaypoint(name)
+	if waypoints[name] then
+		root.CFrame = CFrame.new(waypoints[name])
+	end
+end
+
+--------------------------------------------------
+-- COMMAND RUNNER
+--------------------------------------------------
+
+local function runCommand(text)
+	local args = text:split(" ")
+	local cmd = args[1]:lower()
+	
+	if cmd == "fly" then
+		toggleFly(args[2])
+	end
+	
+	if cmd == "speed" then
+		toggleSpeed(args[2])
+	end
+	
+	if cmd == "goto" then
+		local plr = findPlayer(args[2] or "")
+		if plr and plr.Character then
+			root.CFrame =
+				plr.Character.HumanoidRootPart.CFrame
+		end
+	end
+	
+	if cmd == "swp" then
+		setWaypoint(args[2])
+	end
+	
+	if cmd == "wp" then
+		gotoWaypoint(args[2])
+	end
+	
+	if cmd == "noclip" then
+		toggleNoclip()
+	end
+end
+
+--------------------------------------------------
+-- OPEN / CLOSE (;)
 --------------------------------------------------
 
 UIS.InputBegan:Connect(function(input,gp)
 	if gp then return end
 	
-	if input.KeyCode == Enum.KeyCode.F1 then
-		espOn = not espOn
+	if input.KeyCode == Enum.KeyCode.Semicolon then
+		frame.Visible = not frame.Visible
 		
-		if espOn then
-			for _,plr in pairs(Players:GetPlayers()) do
-				if plr ~= localPlayer and plr.Character then
-					createESP(plr.Character)
-				end
-			end
+		if frame.Visible then
+			box:CaptureFocus()
 		else
-			clearESP()
+			box:ReleaseFocus()
 		end
 	end
 	
-	if input.KeyCode == Enum.KeyCode.F2 then
-		aimbotEnabled = not aimbotEnabled
-		target = nil
-	end
-	
-	if input.KeyCode == Enum.KeyCode.F3 then
-		ignoreFriends = not ignoreFriends
-	end
-	
-	-- 🔧 FIX: RMB start = force new target
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = true
-		target = nil
-	end
-end)
-
-UIS.InputEnded:Connect(function(input,gp)
-	if input.UserInputType == Enum.UserInputType.MouseButton2 then
-		aiming = false
-		target = nil
-	end
-end)
-
---------------------------------------------------
--- 🔧 FIXED AIM LOOP
---------------------------------------------------
-
-RunService.RenderStepped:Connect(function()
-	if not aimbotEnabled then return end
-	if not aiming then return end
-	
-	-- Re-choose closest EVERY frame while holding RMB
-	target = getClosestTarget()
-	
-	if not target then return end
-	
-	local head = target:FindFirstChild("Head")
-	if not head then return end
-	
-	camera.CFrame =
-		CFrame.new(
-			camera.CFrame.Position,
-			head.Position
-		)
-end)
-
---------------------------------------------------
--- RESPAWN ESP (UNCHANGED)
---------------------------------------------------
-
-local function onPlayer(plr)
-	plr.CharacterAdded:Connect(function(char)
-		if espOn and plr ~= localPlayer then
-			task.wait(0.5)
-			createESP(char)
+	if input.KeyCode == Enum.KeyCode.Return then
+		if frame.Visible then
+			runCommand(box.Text)
+			box.Text = ""
 		end
-	end)
-end
-
-for _,plr in pairs(Players:GetPlayers()) do
-	onPlayer(plr)
-end
-
-Players.PlayerAdded:Connect(onPlayer)
+	end
+end)
